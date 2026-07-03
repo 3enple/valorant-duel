@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Valorant 单挑训练场</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%2310151b'/%3E%3Cpath d='M2 12 8 2l6 10h-3l-1-2H6l-1 2H2Z' fill='%23ff6266'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+
+    <div class="hud top-left">
+      <div class="brand">Valorant</div>
+      <div class="creator">Creator 3enple</div>
+      <div class="stats">
+        <span>房间 <b id="roomLabel">-</b></span>
+        <span>队伍 <b id="teamLabel">-</b></span>
+        <span>人数 <b id="playerCount">1/2</b></span>
+        <span>击杀 <b id="kills">0</b></span>
+        <span>死亡 <b id="deaths">0</b></span>
+      </div>
+    </div>
+
+    <div class="hud top-right">
+      <div class="pill danger">HP <b id="health">100</b></div>
+      <div class="pill">AMMO <b id="ammo">12</b></div>
+      <button id="leaveButton" type="button" title="离开房间">离开</button>
+    </div>
+
+    <div class="scoreboard hud" id="scoreboard"></div>
+
+    <div class="crosshair" aria-hidden="true">
+      <span></span><span></span><span></span><span></span>
+    </div>
+
+    <div class="hitmarker" id="hitmarker" aria-hidden="true">×</div>
+    <div class="damage" id="damage" aria-hidden="true"></div>
+
+    <div class="start" id="start">
+      <form class="join" id="joinForm">
+        <h1>Valorant</h1>
+        <div class="creator hero">Creator 3enple</div>
+        <p>三路爆破风格单挑训练场。输入同一个房间号，两个人加入就能开打。</p>
+        <div class="fields">
+          <label>
+            昵称
+            <input id="nameInput" maxlength="14" autocomplete="off" placeholder="Player" />
+          </label>
+          <label>
+            房间号
+            <input id="roomInput" maxlength="12" autocomplete="off" placeholder="A123" />
+          </label>
+        </div>
+        <div class="teams" role="group" aria-label="选择队伍">
+          <label><input type="radio" name="team" value="red" checked /> 红队</label>
+          <label><input type="radio" name="team" value="blue" /> 蓝队</label>
+        </div>
+        <button id="startButton" type="submit">进入房间</button>
+        <div class="notice" id="notice">WASD 移动，鼠标瞄准，左键射击，R 换弹，Shift 慢走。</div>
+      </form>
+    </div>
+
+    <div class="hud bottom-left">
+      <span>WASD</span>
+      <span>Mouse</span>
+      <span>Click</span>
+      <span>R Reload</span>
+    </div>
+
+    <script src="./vendor/three.min.js"></script>
+    <script src="./src/main.js"></script>
+  </body>
+</html>
