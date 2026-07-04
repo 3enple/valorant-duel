@@ -40,6 +40,16 @@ const velocity = new THREE.Vector3();
 const direction = new THREE.Vector3();
 const shotDirection = new THREE.Vector3();
 
+const MAX_AMMO = 30;
+const FIRE_INTERVAL = 105;
+const MOVING_SPREAD = 0.075;
+const RELOAD_MS = 1250;
+const recoilPattern = [
+  [0, 0.012], [0.002, 0.014], [-0.002, 0.016], [0.004, 0.018], [-0.005, 0.019],
+  [0.007, 0.02], [-0.007, 0.021], [0.009, 0.021], [-0.01, 0.02], [0.011, 0.019],
+  [0.012, 0.018], [-0.012, 0.017], [0.013, 0.016], [-0.013, 0.015], [0.014, 0.014]
+];
+
 const local = {
   id: null,
   name: "",
@@ -48,7 +58,7 @@ const local = {
   health: 100,
   kills: 0,
   deaths: 0,
-  ammo: 12,
+  ammo: MAX_AMMO,
   alive: true
 };
 
@@ -63,6 +73,10 @@ let lastNetSend = 0;
 let leavingRoom = false;
 let audioContext = null;
 let lastStepTime = 0;
+let firing = false;
+let lastShotTime = 0;
+let lastManualShotTime = 0;
+let recoilIndex = 0;
 
 const materials = {
   floor: new THREE.MeshStandardMaterial({ color: 0xb99a72, roughness: 0.88 }),
@@ -310,7 +324,7 @@ function enterMap(message, lockPointer) {
   local.health = 100;
   local.kills = 0;
   local.deaths = 0;
-  local.ammo = 12;
+  local.ammo = MAX_AMMO;
   local.alive = true;
   joined = true;
   startPanel.classList.add("hidden");
@@ -327,11 +341,15 @@ function localSpawn(team) {
 
 function shoot() {
   if (!joined || !local.alive || reloading || document.pointerLockElement !== canvas) return;
+  const now = performance.now();
+  if (now - lastShotTime < FIRE_INTERVAL) return;
   if (local.ammo <= 0) {
     reload();
     return;
   }
 
+  lastShotTime = now;
+  lastManualShotTime = now;
   local.ammo -= 1;
   recoil = 1;
   weapon.userData.muzzle.intensity = 9;
@@ -349,6 +367,7 @@ function shoot() {
   const hits = raycaster.intersectObjects(hitboxes, false);
   const tracerEnd = hits[0]?.point || shotDirection.clone().multiplyScalar(42).add(camera.position);
   addTracer(camera.position, tracerEnd);
+  applyRecoilKick();
 
   send({
     type: "shoot",
@@ -360,11 +379,17 @@ function shoot() {
 
 function applyMovementSpread(dir) {
   if (!isMoving()) return;
-  const spread = 0.075;
-  dir.x += THREE.MathUtils.randFloatSpread(spread);
-  dir.y += THREE.MathUtils.randFloatSpread(spread);
-  dir.z += THREE.MathUtils.randFloatSpread(spread);
+  dir.x += THREE.MathUtils.randFloatSpread(MOVING_SPREAD);
+  dir.y += THREE.MathUtils.randFloatSpread(MOVING_SPREAD);
+  dir.z += THREE.MathUtils.randFloatSpread(MOVING_SPREAD);
   dir.normalize();
+}
+
+function applyRecoilKick() {
+  const [horizontal, vertical] = recoilPattern[Math.min(recoilIndex, recoilPattern.length - 1)];
+  yaw -= horizontal;
+  pitch = THREE.MathUtils.clamp(pitch + vertical, -1.35, 1.25);
+  recoilIndex += 1;
 }
 
 function addTracer(start, end) {
@@ -379,14 +404,15 @@ function addTracer(start, end) {
 }
 
 function reload() {
-  if (reloading || local.ammo === 12) return;
+  if (reloading || local.ammo === MAX_AMMO) return;
+  firing = false;
   reloading = true;
   ammoEl.textContent = "...";
   window.setTimeout(() => {
-    local.ammo = 12;
+    local.ammo = MAX_AMMO;
     reloading = false;
     updateHud();
-  }, 1050);
+  }, RELOAD_MS);
 }
 
 function updateHud(players = []) {
@@ -475,6 +501,7 @@ function send(message) {
 }
 
 function showHit(damage) {
+  playHitSound();
   hitmarker.classList.add("show");
   showDamageText(`-${damage}`);
   window.setTimeout(() => hitmarker.classList.remove("show"), 90);
@@ -492,6 +519,13 @@ function updateWeapon(delta) {
   weapon.position.z = -0.78 + recoil * 0.07;
   weapon.rotation.x = -0.04 - recoil * 0.12;
   weapon.userData.muzzle.intensity = Math.max(0, weapon.userData.muzzle.intensity - delta * 70);
+}
+
+function updateFiring() {
+  if (firing) shoot();
+  if (!firing && performance.now() - lastManualShotTime > 260) {
+    recoilIndex = Math.max(0, recoilIndex - 1);
+  }
 }
 
 function updateTracers(delta) {
@@ -516,14 +550,30 @@ function unlockAudio() {
 function playGunshot() {
   unlockAudio();
   const now = audioContext.currentTime;
+  const noise = audioContext.createBufferSource();
+  const noiseBuffer = audioContext.createBuffer(1, audioContext.sampleRate * 0.11, audioContext.sampleRate);
+  const samples = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < samples.length; i++) samples[i] = (Math.random() * 2 - 1) * (1 - i / samples.length);
+  const highpass = audioContext.createBiquadFilter();
+  const noiseGain = audioContext.createGain();
   const osc = audioContext.createOscillator();
-  const gain = audioContext.createGain();
-  osc.type = "square";
-  osc.frequency.setValueAtTime(150, now);
-  osc.frequency.exponentialRampToValueAtTime(55, now + 0.08);
-  gain.gain.setValueAtTime(0.22, now);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
-  osc.connect(gain).connect(audioContext.destination);
+  const boomGain = audioContext.createGain();
+
+  noise.buffer = noiseBuffer;
+  highpass.type = "highpass";
+  highpass.frequency.setValueAtTime(850, now);
+  noiseGain.gain.setValueAtTime(0.34, now);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+  noise.connect(highpass).connect(noiseGain).connect(audioContext.destination);
+  noise.start(now);
+  noise.stop(now + 0.11);
+
+  osc.type = "sawtooth";
+  osc.frequency.setValueAtTime(115, now);
+  osc.frequency.exponentialRampToValueAtTime(46, now + 0.1);
+  boomGain.gain.setValueAtTime(0.28, now);
+  boomGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+  osc.connect(boomGain).connect(audioContext.destination);
   osc.start(now);
   osc.stop(now + 0.12);
 }
@@ -535,15 +585,35 @@ function playFootstep(walking) {
   if (now - lastStepTime < 0.32) return;
   lastStepTime = now;
 
+  const noise = audioContext.createBufferSource();
+  const buffer = audioContext.createBuffer(1, audioContext.sampleRate * 0.08, audioContext.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+  const filter = audioContext.createBiquadFilter();
+  const gain = audioContext.createGain();
+  noise.buffer = buffer;
+  filter.type = "lowpass";
+  filter.frequency.setValueAtTime(260, now);
+  gain.gain.setValueAtTime(0.1, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+  noise.connect(filter).connect(gain).connect(audioContext.destination);
+  noise.start(now);
+  noise.stop(now + 0.09);
+}
+
+function playHitSound() {
+  unlockAudio();
+  const now = audioContext.currentTime;
   const osc = audioContext.createOscillator();
   const gain = audioContext.createGain();
-  osc.type = "triangle";
-  osc.frequency.setValueAtTime(82, now);
-  gain.gain.setValueAtTime(0.08, now);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(780, now);
+  osc.frequency.exponentialRampToValueAtTime(520, now + 0.08);
+  gain.gain.setValueAtTime(0.18, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
   osc.connect(gain).connect(audioContext.destination);
   osc.start(now);
-  osc.stop(now + 0.09);
+  osc.stop(now + 0.11);
 }
 
 function escapeHtml(value) {
@@ -560,6 +630,7 @@ function frame() {
   const delta = Math.min(clock.getDelta(), 0.04);
   camera.rotation.y = yaw;
   camera.rotation.x = pitch;
+  updateFiring();
   updateMovement(delta);
   updateWeapon(delta);
   updateTracers(delta);
@@ -591,7 +662,18 @@ window.addEventListener("mousemove", (event) => {
 });
 
 window.addEventListener("mousedown", (event) => {
-  if (event.button === 0) shoot();
+  if (event.button === 0) {
+    firing = true;
+    shoot();
+  }
+});
+
+window.addEventListener("mouseup", (event) => {
+  if (event.button === 0) firing = false;
+});
+
+window.addEventListener("blur", () => {
+  firing = false;
 });
 
 canvas.addEventListener("click", () => {
@@ -600,6 +682,7 @@ canvas.addEventListener("click", () => {
 
 leaveButton.addEventListener("click", () => {
   leavingRoom = true;
+  firing = false;
   if (ws) ws.close();
   joined = false;
   startPanel.classList.remove("hidden");
