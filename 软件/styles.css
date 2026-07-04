@@ -287,6 +287,77 @@ body[data-crosshair="circle"] .crosshair i {
   border: 2px solid var(--crosshair-color);
 }
 
+body[data-scoped="true"] .crosshair {
+  display: none;
+}
+
+.scope-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at center, transparent 0 31vmin, rgba(0, 0, 0, 0.98) 31.4vmin),
+    linear-gradient(rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.2));
+}
+
+.scope-overlay.hidden {
+  display: none;
+}
+
+.scope-view {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 62vmin;
+  height: 62vmin;
+  max-width: calc(100vw - 34px);
+  max-height: calc(100vh - 34px);
+  transform: translate(-50%, -50%);
+  border: 3px solid rgba(8, 8, 8, 0.95);
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08), inset 0 0 28px rgba(0, 0, 0, 0.55);
+}
+
+.scope-view::before,
+.scope-view::after {
+  content: "";
+  position: absolute;
+  background: rgba(10, 10, 10, 0.82);
+}
+
+.scope-view::before {
+  left: 50%;
+  top: 7%;
+  width: 1px;
+  height: 86%;
+}
+
+.scope-view::after {
+  left: 7%;
+  top: 50%;
+  width: 86%;
+  height: 1px;
+}
+
+.scope-view span {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #111111;
+  transform: translate(-50%, -50%);
+}
+
+.scope-view i {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at center, transparent 68%, rgba(255, 255, 255, 0.08) 69%, transparent 72%);
+}
+
 .hitmarker,
 .damage {
   position: fixed;
