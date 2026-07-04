@@ -6,12 +6,15 @@ const path = require("path");
 const PORT = Number(process.env.PORT || 5177);
 const ROOT = __dirname;
 const MAX_PLAYERS = 2;
-const DAMAGE = 17;
-const ROUND_RESET_MS = 900;
+const ROUND_RESET_MS = 850;
 const WIN_SCORE = 30;
+const WEAPONS = {
+  rifle: { damage: 17, interval: 95, range: 58 },
+  pistol: { damage: 25, interval: 190, range: 44 },
+  sniper: { damage: 100, interval: 850, range: 70 }
+};
 
 const rooms = new Map();
-
 const types = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
@@ -71,8 +74,7 @@ server.on("upgrade", (req, socket) => {
     kills: 0,
     deaths: 0,
     alive: true,
-    lastShot: 0,
-    matchOver: false
+    lastShot: 0
   };
 
   socket.on("data", (chunk) => handleFrame(client, chunk));
@@ -82,14 +84,13 @@ server.on("upgrade", (req, socket) => {
 
 setInterval(() => {
   for (const room of rooms.values()) {
-    const players = [...room.players].map(publicPlayer);
-    broadcast(room, { type: "snapshot", players });
+    broadcast(room, { type: "snapshot", players: [...room.players].map(publicPlayer) });
   }
 }, 50);
 
 if (require.main === module) {
   server.listen(PORT, "0.0.0.0", () => {
-    console.log(`AirLab server running on http://0.0.0.0:${PORT}`);
+    console.log(`Valorant duel server running on http://0.0.0.0:${PORT}`);
   });
 }
 
@@ -100,20 +101,17 @@ function handleMessage(client, message) {
     joinRoom(client, message);
     return;
   }
-
   if (!client.room) return;
 
   if (message.type === "state") {
-    client.x = clamp(Number(message.x) || 0, -18, 18);
-    client.z = clamp(Number(message.z) || 0, -20, 20);
+    client.x = clamp(Number(message.x) || 0, -8, 8);
+    client.z = clamp(Number(message.z) || 0, -18, 18);
     client.yaw = Number(message.yaw) || 0;
     client.pitch = clamp(Number(message.pitch) || 0, -1.4, 1.3);
     return;
   }
 
-  if (message.type === "shoot") {
-    handleShot(client, message);
-  }
+  if (message.type === "shoot") handleShot(client, message);
 }
 
 function joinRoom(client, message) {
@@ -138,8 +136,9 @@ function joinRoom(client, message) {
 }
 
 function handleShot(client, message) {
+  const weapon = WEAPONS[message.weapon] || WEAPONS.rifle;
   const now = Date.now();
-  if (!client.alive || now - client.lastShot < 90) return;
+  if (!client.alive || now - client.lastShot < weapon.interval) return;
   client.lastShot = now;
 
   const room = rooms.get(client.room);
@@ -153,20 +152,21 @@ function handleShot(client, message) {
   if (!dir) return;
 
   const distance = rayDistance(origin, dir, { x: target.x, y: 1.05, z: target.z });
-  if (distance > 0.85 || pointDistance(origin, target) > 78) return;
+  if (distance > 0.85 || pointDistance(origin, target) > weapon.range) return;
 
-  target.health = Math.max(0, target.health - DAMAGE);
-  send(client, { type: "hit", damage: DAMAGE, health: target.health });
+  target.health = Math.max(0, target.health - weapon.damage);
+  send(client, { type: "hit", damage: weapon.damage, health: target.health });
 
   if (target.health === 0) {
     target.alive = false;
     target.deaths += 1;
     client.kills += 1;
     send(client, { type: "killed" });
+    send(target, { type: "died", killer: client.name });
 
     if (client.kills >= WIN_SCORE) {
       broadcast(room, { type: "matchWin", winner: client.team, name: client.name });
-      setTimeout(() => resetMatch(room), 3500);
+      setTimeout(() => resetMatch(room), 3200);
       return;
     }
 
@@ -175,12 +175,14 @@ function handleShot(client, message) {
 }
 
 function resetRound(room) {
+  const spawns = {};
   for (const player of room.players) {
     player.health = 100;
     player.alive = true;
     Object.assign(player, spawnFor(player.team));
+    spawns[player.id] = { x: player.x, z: player.z, yaw: player.yaw };
   }
-  broadcast(room, { type: "roundReset" });
+  broadcast(room, { type: "roundReset", spawns });
 }
 
 function resetMatch(room) {
@@ -223,10 +225,10 @@ function publicPlayer(player) {
 }
 
 function spawnFor(team) {
-  const spread = Math.random() * 2 - 1;
+  const spread = Math.random() * 1.2 - 0.6;
   return team === "red"
-    ? { x: -8 + spread, z: 16, yaw: 0 }
-    : { x: 8 + spread, z: -16, yaw: Math.PI };
+    ? { x: spread, z: 15, yaw: 0 }
+    : { x: spread, z: -15, yaw: Math.PI };
 }
 
 function broadcast(room, message) {
