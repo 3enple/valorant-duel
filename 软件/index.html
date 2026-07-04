@@ -7,7 +7,7 @@
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%2310151b'/%3E%3Cpath d='M2 12 8 2l6 10h-3l-1-2H6l-1 2H2Z' fill='%23ff6266'/%3E%3C/svg%3E" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
-  <body>
+  <body data-crosshair="cross">
     <canvas id="scene"></canvas>
 
     <div class="hud top-left">
@@ -23,9 +23,10 @@
     </div>
 
     <div class="hud top-right">
+      <button id="settingsButton" type="button">设置</button>
       <div class="pill danger">HP <b id="health">100</b></div>
       <div class="pill">AMMO <b id="ammo">30</b></div>
-      <button id="leaveButton" type="button" title="离开房间">离开</button>
+      <button id="leaveButton" type="button">离开</button>
     </div>
 
     <div class="hud match-score">
@@ -38,16 +39,50 @@
 
     <div class="crosshair" aria-hidden="true">
       <span></span><span></span><span></span><span></span>
+      <i></i>
     </div>
 
     <div class="hitmarker" id="hitmarker" aria-hidden="true">×</div>
     <div class="damage" id="damage" aria-hidden="true"></div>
 
+    <div class="settings-panel hidden" id="settingsPanel">
+      <div class="settings-inner">
+        <div class="settings-head">
+          <h2>设置</h2>
+          <button id="closeSettings" type="button">关闭</button>
+        </div>
+        <label>
+          武器
+          <select id="weaponSelect">
+            <option value="rifle">步枪 30 发</option>
+            <option value="pistol">手枪 12 发</option>
+            <option value="sniper">狙击枪 5 发</option>
+          </select>
+        </label>
+        <label>
+          准星样式
+          <select id="crosshairStyle">
+            <option value="cross">十字</option>
+            <option value="dot">点准星</option>
+            <option value="circle">圆点</option>
+          </select>
+        </label>
+        <label>
+          准星颜色
+          <input id="crosshairColor" type="color" value="#fff8ed" />
+        </label>
+        <label>
+          准星大小
+          <input id="crosshairSize" type="range" min="20" max="52" value="34" />
+        </label>
+      </div>
+    </div>
+
     <div class="start" id="start">
       <form class="join" id="joinForm">
         <h1>Valorant</h1>
         <div class="creator hero">Creator 3enple</div>
-        <p>三路爆破风格单挑训练场。输入同一个房间号，两个人加入就能开打。</p>
+        <p>小型单挑图：一条主路，中间掩体，两边出生点。输入同一个房间号开打。</p>
         <div class="fields">
           <label>
             昵称
@@ -63,12 +98,14 @@
           <label><input type="radio" name="team" value="blue" /> 蓝队</label>
         </div>
         <button id="startButton" type="submit">进入房间</button>
-        <div class="notice" id="notice">WASD 移动，鼠标瞄准，左键射击，R 换弹，Shift 慢走。</div>
+        <button id="menuSettingsButton" type="button" class="secondary">设置</button>
+        <div class="notice" id="notice">WASD 移动，空格跳跃，鼠标瞄准，左键射击，R 换弹，Shift 静步。</div>
       </form>
     </div>
 
     <div class="hud bottom-left">
       <span>WASD</span>
+      <span>Space</span>
       <span>Mouse</span>
       <span>Click</span>
       <span>R Reload</span>
